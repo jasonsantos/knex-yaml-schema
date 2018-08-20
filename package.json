@@ -55,7 +55,7 @@
     "collectCoverage": true
   },
   "dependencies": {
-    "dryboard": "^0.2.1",
+    "dryboard": "^0.2.2",
     "js-yaml": "^3.10.0",
     "to-snake-case": "^1.0.0"
   },

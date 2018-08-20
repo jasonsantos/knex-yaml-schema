@@ -26,11 +26,11 @@
   },
   "homepage": "https://github.com/jasonsantos/knex-yaml-schema#readme",
   "devDependencies": {
-    "babel-cli": "",
-    "babel-plugin-transform-object-rest-spread": "",
-    "babel-preset-env": "",
-    "codecov": "",
-    "jest": ""
+    "babel-cli": "^6.26.0",
+    "babel-plugin-transform-object-rest-spread": "^6.26.0",
+    "babel-preset-env": "^1.7.0",
+    "codecov": "^3.0.4",
+    "jest": "^23.5.0"
   },
   "babel": {
     "presets": [

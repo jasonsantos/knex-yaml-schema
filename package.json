@@ -34,7 +34,14 @@
   },
   "babel": {
     "presets": [
-      "env"
+      [
+        "env",
+        {
+          "targets": {
+            "node": "current"
+          }
+        }
+      ]
     ],
     "plugins": [
       "transform-object-rest-spread"
@@ -48,7 +55,7 @@
     "collectCoverage": true
   },
   "dependencies": {
-    "dryboard": "^0.1.0",
+    "dryboard": "^0.2.1",
     "js-yaml": "^3.10.0",
     "to-snake-case": "^1.0.0"
   },

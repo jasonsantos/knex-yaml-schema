@@ -10,34 +10,34 @@ const validateTable = (name, details) =>
         `Invalid Table object '${name}' (no properties or data found)`
       );
 
-const typeCreators = {
+const makeTypeCreators = ({ wrapIdentifier }) => ({
   number: ([engine, table, fieldName, fieldDetails]) =>
     fieldDetails.format === "float"
-      ? table.float(snakeCase(fieldName))
-      : table.integer(snakeCase(fieldName)),
+      ? table.float(wrapIdentifier(fieldName))
+      : table.integer(wrapIdentifier(fieldName)),
   datetime: ([engine, table, fieldName, fieldDetails]) =>
-    table.dateTime(snakeCase(fieldName)),
+    table.dateTime(wrapIdentifier(fieldName)),
   date: ([engine, table, fieldName, fieldDetails]) =>
-    table.date(snakeCase(fieldName)),
+    table.date(wrapIdentifier(fieldName)),
   json: ([engine, table, fieldName, fieldDetails]) =>
-    table.json(snakeCase(fieldName)),
+    table.json(wrapIdentifier(fieldName)),
   string: ([engine, table, fieldName, fieldDetails]) =>
-    table.string(snakeCase(fieldName), fieldDetails.size),
+    table.string(wrapIdentifier(fieldName), fieldDetails.size),
   text: ([engine, table, fieldName, fieldDetails]) =>
-    table.text(snakeCase(fieldName)),
+    table.text(wrapIdentifier(fieldName)),
   boolean: ([engine, table, fieldName, fieldDetails]) =>
-    table.boolean(snakeCase(fieldName)),
+    table.boolean(wrapIdentifier(fieldName)),
   pk: ([engine, table, fieldName, fieldDetails]) =>
     table
-      .uuid(snakeCase(fieldName))
+      .uuid(wrapIdentifier(fieldName))
       .primary()
       .defaultTo(engine.raw("uuid_generate_v4()")),
   uuid: ([engine, table, fieldName, fieldDetails]) =>
-    table.uuid(snakeCase(fieldName)),
+    table.uuid(wrapIdentifier(fieldName)),
   fk: ([engine, table, fieldName, fieldDetails]) =>
-    table.uuid(snakeCase(fieldName)).index(), // todo: internal reference table
+    table.uuid(wrapIdentifier(fieldName)).index(), // todo: internal reference table
   ref: ([engine, table, fieldName, fieldDetails]) =>
-    table.integer(snakeCase(fieldName)).index(), // external reference
+    table.integer(wrapIdentifier(fieldName)).index(), // external reference
   originaltimestamps: ([engine, table, fieldName, fieldDetails]) =>
     table.dateTime("original_created_at") &&
     table.dateTime("original_updated_at"),
@@ -45,12 +45,13 @@ const typeCreators = {
     table.timestamps(true, true),
   enum: ([engine, table, fieldName, fieldDetails]) =>
     table.enum(
-      snakeCase(fieldName),
+      wrapIdentifier(fieldName),
       fieldDetails.type.match(/'([^']*)'/g).map(i => i.replace(/'/g, ""))
     )
-};
+});
 
-const yamlField = ([engine, table, fieldName, fieldDetails]) => {
+const yamlField = ([engine, table, fieldName, fieldDetails, wrapIdentifier]) => {
+  const typeCreators = makeTypeCreators({ wrapIdentifier })
   const type =
     typeof fieldDetails === "string"
       ? fieldDetails
@@ -65,12 +66,12 @@ const yamlField = ([engine, table, fieldName, fieldDetails]) => {
   }
 };
 
-const yamlTable = ([engine, tableName, tableDetails]) =>
+const yamlTable = ([engine, tableName, tableDetails, wrapIdentifier]) =>
   validateTable(tableName, tableDetails).then(
     (details, schema = engine.schema.withSchema("public")) =>
-      schema.dropTableIfExists(snakeCase(tableName)).then(() => {
+      schema.dropTableIfExists(wrapIdentifier(tableName)).then(() => {
         let created = false;
-        return schema.createTable(snakeCase(tableName), table => {
+        return schema.createTable(wrapIdentifier(tableName), table => {
           const comment = tableDetails.description || tableDetails.notes;
           comment && table.comment(comment);
           Object.keys(tableDetails.properties).map(fieldName =>
@@ -78,7 +79,8 @@ const yamlTable = ([engine, tableName, tableDetails]) =>
               engine,
               table,
               fieldName,
-              tableDetails.properties[fieldName]
+              tableDetails.properties[fieldName],
+              wrapIdentifier
             ])
           );
         });
@@ -105,7 +107,7 @@ const parseValue = async (obj, fieldName, { get }) => {
   return res;
 };
 
-const inflateObjectWithRefs = async (item, { get }) => {
+const inflateObjectWithRefs = async (item, { get }, wrapIdentifier) => {
   const keys = Object.keys(item);
 
   const values = await Promise.all(
@@ -115,15 +117,18 @@ const inflateObjectWithRefs = async (item, { get }) => {
   const result = keys
     .map((fieldName, i) => [fieldName, values[i]])
     .reduce(
-      (res, [fieldName, value]) => ({ ...res, [snakeCase(fieldName)]: value }),
+      (res, [fieldName, value]) => ({
+        ...res,
+        [wrapIdentifier(fieldName)]: value
+      }),
       {}
     );
 
   return result;
 };
 
-const preProcessItem = async (obj, { get }) =>
-  await inflateObjectWithRefs(obj, { get });
+const preProcessItem = async (obj, { get }, wrapIdentifier) =>
+  await inflateObjectWithRefs(obj, { get }, wrapIdentifier);
 
 const postProcessItem = async (id, idx, { set, key }) =>
   set(key(idx + 1), id) || id;
@@ -133,10 +138,11 @@ const insertDataIntoTable = (
   schema,
   tableName,
   tableData,
-  cache
+  cache,
+  wrapIdentifier
 ) => {
   return previousResult.then(() =>
-    validateTable(tableName, tableData)
+    validateTable(wrapIdentifier(tableName), tableData)
       .then(
         tableData =>
           Array.isArray(tableData.data)
@@ -144,13 +150,13 @@ const insertDataIntoTable = (
             : Promise.reject("Field 'data' should be a non-empty array")
       )
       .then(rows =>
-        schema(tableName)
+        schema(wrapIdentifier(tableName))
           .del()
           .then(async () =>
-            schema(tableName)
+            schema(wrapIdentifier(tableName))
               .insert(
                 await Promise.all(
-                  tableData.data.map(item => preProcessItem(item, cache))
+                  tableData.data.map(item => preProcessItem(item, cache, wrapIdentifier))
                 ),
                 "id"
               )
@@ -168,13 +174,13 @@ const insertDataIntoTable = (
 
 const createKey = name => index => `<${name}[${index}]>`;
 
-module.exports = (engine, Promise) => ({
+module.exports = (engine, Promise, wrapIdentifier = snakeCase) => ({
   create: yaml => {
     return engine
       .raw('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
       .then(() =>
         yamlTables(parser.safeLoad(yaml)).then(allTables =>
-          Promise.all(allTables.map(t => yamlTable([engine, ...t])))
+          Promise.all(allTables.map(t => yamlTable([engine, ...t, wrapIdentifier])))
         )
       );
   },
@@ -184,7 +190,7 @@ module.exports = (engine, Promise) => ({
       : [tableOrTables];
     return Promise.resolve(
       tables
-        .map(snakeCase)
+        .map(wrapIdentifier)
         .map(tableName =>
           engine.schema.withSchema("public").dropTable(tableName)
         )
@@ -196,7 +202,7 @@ module.exports = (engine, Promise) => ({
         (result, [tableName, tableData]) =>
           insertDataIntoTable(
             result,
-            tableName => engine(snakeCase(tableName)).withSchema("public"),
+            tableName => engine(wrapIdentifier(tableName)).withSchema("public"),
             tableName,
             tableData,
             {
@@ -204,7 +210,8 @@ module.exports = (engine, Promise) => ({
               set,
               clear,
               key: createKey(tableName)
-            }
+            },
+            wrapIdentifier
           ),
         Promise.resolve()
       )

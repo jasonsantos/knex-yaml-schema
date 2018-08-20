@@ -1,6 +1,6 @@
 {
   "name": "knex-yaml-schema",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "An opinionated tool that uses YAML to create and populate tables using knexjs",
   "main": "./lib/knex-yaml-schema.js",
   "scripts": {
@@ -26,11 +26,11 @@
   },
   "homepage": "https://github.com/jasonsantos/knex-yaml-schema#readme",
   "devDependencies": {
-    "babel-cli": "^6.26.0",
-    "babel-plugin-transform-object-rest-spread": "^6.26.0",
-    "babel-preset-env": "^1.6.1",
-    "codecov": "^3.0.0",
-    "jest": "^22.1.4"
+    "babel-cli": "",
+    "babel-plugin-transform-object-rest-spread": "",
+    "babel-preset-env": "",
+    "codecov": "",
+    "jest": ""
   },
   "babel": {
     "presets": [

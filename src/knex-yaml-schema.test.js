@@ -1,10 +1,12 @@
 /* tslint:disable */
 const yamlSchemaEngine = require("./knex-yaml-schema");
+const snakeCase = require('to-snake-case')
 
-const yamlSchema = pub =>
+const yamlSchema = (pub, promise=Promise, wrapper = undefined) =>
   yamlSchemaEngine(
     { raw: async n => n, schema: { withSchema: () => pub } },
-    Promise
+    promise,
+    wrapper
   );
 
 const dummyColumn = {
@@ -34,8 +36,6 @@ const dummySchema = {
     console.log("\n\n\n# CREATE TABLE", tableName) || cb(dummyTable)
 };
 
-const schema = require("./knex-yaml-schema")(dummySchema);
-
 describe("Tests for the Yaml database creation engine", () => {
   it("should convert to snake_case and drop table", () => {
     yamlSchema({
@@ -62,7 +62,7 @@ describe("Tests for the Yaml database creation engine", () => {
     );
   });
 
-  it("should convert to snake_case and create the table in the top-level of the yaml", () => {
+  it("should convert to snake_case and create the table in the top-level of the yaml", done => {
     const res = yamlSchema({
       ...dummySchema,
       createTable: async (tableName, cb) =>
@@ -82,10 +82,13 @@ describe("Tests for the Yaml database creation engine", () => {
           aFieldWithAComplicatedNameAlso:
             type: string
     `;
-    expect(res).resolves.toMatchObject([dummySchema]);
+    res.then(res => {
+      expect(res).toMatchObject([dummySchema]);
+      done();
+    });
   });
 
-  it("should work as expected for all types of fields", () => {
+  it("should work as expected for all types of fields", done => {
     const res = yamlSchema({
       ...dummySchema,
       createTable: async (tableName, cb) =>
@@ -129,10 +132,13 @@ describe("Tests for the Yaml database creation engine", () => {
           timestamps:
             type: timestamps
     `;
-    expect(res).resolves.toMatchObject([dummySchema]);
+    res.then(res => {
+      expect(res).toMatchObject([dummySchema]);
+      done();
+    });
   });
 
-  it("should convert to snake_case and create every table in the top-level of the yaml", () => {
+  it("should convert to snake_case and create every table in the top-level of the yaml", done => {
     const res = yamlSchema({
       ...dummySchema,
       createTable: async tableName =>
@@ -157,16 +163,19 @@ describe("Tests for the Yaml database creation engine", () => {
           id: number
 
     `;
-    expect(res).resolves.toMatchObject([
-      dummySchema,
-      dummySchema,
-      dummySchema,
-      dummySchema,
-      dummySchema
-    ]);
-  });
+    res.then(res => {
+      expect(res).toMatchObject([
+        dummySchema,
+        dummySchema,
+        dummySchema,
+        dummySchema,
+        dummySchema
+      ]);
+      done();
+    });
+  })
 
-  it("should work as expected for special history timestamp cases too", () => {
+  it("should work as expected for special history timestamp cases too", done => {
     const res = yamlSchema({
       ...dummySchema,
       createTable: async (tableName, cb) =>
@@ -188,7 +197,10 @@ describe("Tests for the Yaml database creation engine", () => {
           timestamps:
             type: timestamps
     `;
-    expect(res).resolves.toMatchObject([dummySchema]);
+    res.then(res => {
+      expect(res).toMatchObject([dummySchema]);
+      done();
+    });
   });
 
   const pkMock = n => {
@@ -199,7 +211,7 @@ describe("Tests for the Yaml database creation engine", () => {
     return expect(n).toBe("id") || column;
   };
 
-  it("should make pk types uuids and primary", () => {
+  it("should make pk types uuids and primary", done => {
     const res = yamlSchema({
       ...dummySchema,
       createTable: async (tableName, cb) =>
@@ -214,10 +226,13 @@ describe("Tests for the Yaml database creation engine", () => {
         properties:
           id: pk
     `;
-    expect(res).resolves.toMatchObject([dummySchema]);
+    res.then(res => {
+      expect(res).toMatchObject([dummySchema]);
+      done();
+    });
   });
 
-  it("should make fields unique when requested", () => {
+  it("should make fields unique when requested", done => {
     const res = yamlSchema({
       ...dummySchema,
       createTable: async (tableName, cb) =>
@@ -238,10 +253,13 @@ describe("Tests for the Yaml database creation engine", () => {
             type: uuid
             unique: true
     `;
-    expect(res).resolves.toMatchObject([dummySchema]);
+    res.then(res => {
+      expect(res).toMatchObject([dummySchema]);
+      done();
+    });
   });
 
-  it("should make fk and reference types indexes", () => {
+  it("should make fk and reference types indexes", done => {
     const res = yamlSchema({
       ...dummySchema,
       createTable: async (tableName, cb) =>
@@ -264,10 +282,13 @@ describe("Tests for the Yaml database creation engine", () => {
           ec6PatientId: ref
           internalReferenceId: fk
         `;
-    expect(res).resolves.toMatchObject([dummySchema]);
+    res.then(res => {
+      expect(res).toMatchObject([dummySchema]);
+      done();
+    });
   });
 
-  it("should add comments to fields and tables", () => {
+  it("should add comments to fields and tables", done => {
     const res = yamlSchema({
       ...dummySchema,
       createTable: async (tableName, cb) =>
@@ -299,10 +320,13 @@ describe("Tests for the Yaml database creation engine", () => {
             type: number
             description: this is the name, not the alias
       `;
-    expect(res).resolves.toMatchObject([dummySchema]);
+    res.then(res => {
+      expect(res).toMatchObject([dummySchema]);
+      done();
+    });
   });
 
-  it("should default all unknown field types to string", () => {
+  it("should default all unknown field types to string", done => {
     const res = yamlSchema({
       ...dummySchema,
       createTable: async (tableName, cb) =>
@@ -319,10 +343,42 @@ describe("Tests for the Yaml database creation engine", () => {
           id: pk
           strangelyTypedField: strangeThing
       `;
-    expect(res).resolves.toMatchObject([dummySchema]);
+    res.then(res => {
+      expect(res).toMatchObject([dummySchema]);
+      done();
+    });
   });
 
-  it("should have support for string size and long text fields", () => {
+
+    it("should be able to use custom identifier wrapper", done => {
+    const wrapper = s => `<${s.split('$').map(snakeCase).join("__")}>`;
+    const res = yamlSchema(
+      {
+        ...dummySchema,
+        createTable: async (tableName, cb) =>
+          cb({
+            ...dummyTable,
+            uuid: i => expect(i).toBe('<id>') || pkMock('id'),
+            string: n => expect(n).toBe("<namespace__strangely_typed_field__stragely_named_subfield>")
+          }) ||
+          expect(tableName).toMatch("<peculiarly_namespaced__peculiarly_named_data_table>") ||
+          dummySchema
+      },
+      Promise,
+      wrapper
+    ).create`
+      PeculiarlyNamespaced$PeculiarlyNamedDataTable:
+        properties:
+          id: pk
+          namespace$strangelyTypedField$stragelyNamedSubfield: strangeThing
+      `;
+    res.then(res => {
+      expect(res).toMatchObject([dummySchema]);
+      done();
+    });
+  });
+
+  it("should have support for string size and long text fields", done => {
     const res = yamlSchema({
       ...dummySchema,
       createTable: async (tableName, cb) =>
@@ -344,7 +400,10 @@ describe("Tests for the Yaml database creation engine", () => {
           textField:
             type: text
       `;
-    expect(res).resolves.toMatchObject([dummySchema]);
+    res.then(res => {
+      expect(res).toMatchObject([dummySchema]);
+      done();
+    });
   });
 });
 

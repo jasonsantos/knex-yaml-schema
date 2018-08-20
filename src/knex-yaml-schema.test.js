@@ -47,6 +47,16 @@ describe("Tests for the Yaml database creation engine", () => {
     }).dropTable("CustomClinicGuideHistory");
   });
 
+  it("should convert to snake_case and drop table", () => {
+    yamlSchema({
+      ...dummySchema,
+      drop: async tableName =>
+        expect(tableName).toBe("custom_clinic_guide_history") || dummySchema,
+      dropTableIfExists: async tableName =>
+        expect(tableName).toBe("custom_clinic_guide_history") || dummySchema
+    }).dropTable(["CustomClinicGuideHistory"]);
+  });
+
   it("should throw an error if tables have no properties", done => {
     const res = yamlSchema({
       ...dummySchema,
@@ -192,6 +202,45 @@ describe("Tests for the Yaml database creation engine", () => {
       ImportantDataTableHistory:
         properties:
           id: number
+          originaltimestamps:
+            type: originaltimestamps
+          timestamps:
+            type: timestamps
+    `;
+    res.then(res => {
+      expect(res).toMatchObject([dummySchema]);
+      done();
+    });
+  });
+
+  const refMock = n => {
+    const column = {
+      primary: () => expect(n).toBe("user_id") || column,
+      defaultTo: () => expect(n).toBe("user_id") || column,
+      index: () => expect(n).toBe("user_id") || column
+    };
+    return expect(n).toBe("user_id") || column;
+  };
+
+
+  it("should work as expected for special history timestamp cases too", done => {
+    const res = yamlSchema({
+      ...dummySchema,
+      createTable: async (tableName, cb) =>
+        cb({
+          ...dummyTable,
+          integer: n => expect(n).toBe("user_id") || refMock("user_id"),
+          dateTime: n =>
+            expect(n).toMatch(/original_created_at|original_updated_at/) || {},
+          timestamps: (m, n) => expect(n && m).toBe(true)
+        }) ||
+        expect(tableName).toMatch("important_data_table_history") ||
+        dummySchema
+    }).create`
+      ImportantDataTableHistory:
+        properties:
+          userId: ref
+          name: string
           originaltimestamps:
             type: originaltimestamps
           timestamps:
